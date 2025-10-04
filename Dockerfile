@@ -1,12 +1,24 @@
-FROM ubuntu:20.04
+FROM python:3.11-slim AS base
 
-RUN apt-get update && apt-get install --no-install-recommends -y python3 python3-pip
-COPY requirements.txt /tmp/requirements.txt
-RUN pip3 install --no-cache-dir -q -r /tmp/requirements.txt
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    UPROXY_PORT=8000
 
-ADD ./web /opt/web/
-WORKDIR /opt/web
+WORKDIR /app
 
-ENV FLASK_APP /opt/web/app.py
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
-CMD gunicorn --timeout 360 --bind 0.0.0.0:$UPROXY_PORT -k gevent --worker-connections 32 app:app
+COPY requirements.txt ./
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir -r requirements.txt
+
+COPY web ./
+
+EXPOSE 8000
+
+CMD [ \
+  "sh", "-c", \
+  "gunicorn -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:${UPROXY_PORT:-8000} --timeout 360 main:app" \
+]
